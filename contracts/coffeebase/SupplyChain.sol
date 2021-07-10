@@ -2,12 +2,13 @@ pragma solidity 0.5.1;
 
 // Import the inherited roles.
 import "../coffeecore/Ownable.sol";
+import "../coffeeaccesscontrol/FarmerRole.sol";
 import "../coffeeaccesscontrol/ConsumerRole.sol";
 import "../coffeeaccesscontrol/RetailerRole.sol";
 import "../coffeeaccesscontrol/DistributorRole.sol";
 
 // Define a contract 'Supplychain'
-contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
+contract SupplyChain is Ownable, FarmerRole, ConsumerRole, RetailerRole, DistributorRole {
 
   // Define 'owner'
   address contractOwner;
@@ -68,12 +69,6 @@ contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
   event Shipped(uint upc);
   event Received(uint upc);
   event Purchased(uint upc);
-
-  // Define a modifer that checks to see if msg.sender == owner of the contract
-  modifier onlyOwner() {
-    require(msg.sender == contractOwner);
-    _;
-  }
 
   // Define a modifer that verifies the Caller
   modifier verifyCaller (address _address) {
@@ -160,7 +155,7 @@ contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
   }
 
   // Define a function 'harvestItem' that allows a farmer to mark an item 'Harvested'
-  function harvestItem(
+  function harvestItem (
     uint _upc,
     address _originFarmerID,
     string  memory _originFarmName,
@@ -168,7 +163,10 @@ contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
     string  memory _originFarmLatitude, 
     string  memory _originFarmLongitude,
     string  memory _productNotes
-  ) public {
+  ) public 
+    // Since we're not able to verify the originFarmerID here via verifyCaller
+    // we need to limit access to only the farmer role.
+    onlyFarmer() {
     // Add the new item as part of Harvest
     Item storage item = items[_upc];
     item.upc = _upc;
@@ -194,7 +192,8 @@ contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
   function processItem(uint _upc) public 
   // Call modifier to check if upc has passed previous supply chain stage
   harvested(_upc) 
-  // Call modifier to verify caller of this function
+  // Call modifier to verify caller of this function - only allow the original farmer to process.
+  // This effectively implements the onlyFarmer role, but uses less gas.
   verifyCaller(items[_upc].originFarmerID)
   {
     // Update the appropriate fields
@@ -210,7 +209,8 @@ contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
   // Call modifier to check if upc has passed previous supply chain stage
   processed(_upc)
   
-  // Call modifier to verify caller of this function
+  // Call modifier to verify caller of this function - only allow the original farmer to pack.
+  // This effectively implements the onlyFarmer role, but uses less gas.
   verifyCaller(items[_upc].originFarmerID)
   {
     // Update the appropriate fields
@@ -226,7 +226,8 @@ contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
   // Call modifier to check if upc has passed previous supply chain stage
   packed(_upc)
   
-  // Call modifier to verify caller of this function
+  // Call modifier to verify caller of this function - only allow the original farmer to put up for sale.
+  // This effectively implements the onlyFarmer role, but uses less gas.
   verifyCaller(items[_upc].originFarmerID)
   {
     // Update the appropriate fields
@@ -242,6 +243,9 @@ contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
   // Use the above defined modifiers to check if the item is available for sale, if the buyer has paid enough, 
   // and any excess ether sent is refunded back to the buyer
   function buyItem(uint _upc) public payable 
+    // Only allow configured distributors to buy.
+    onlyDistributor()
+
     // Call modifier to check if upc has passed previous supply chain stage
     forSale(_upc)
     
@@ -272,7 +276,7 @@ contract SupplyChain is Ownable, ConsumerRole, RetailerRole, DistributorRole {
     // Call modifier to check if upc has passed previous supply chain stage
     sold(_upc)
     
-    // Call modifier to verify caller of this function
+    // Call modifier to verify caller of this function - only allow the designated distributor to ship.
     verifyCaller(items[_upc].distributorID)
     {
     // Update the appropriate fields
