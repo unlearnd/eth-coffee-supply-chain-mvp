@@ -48,6 +48,7 @@ contract('SupplyChain', function(accounts) {
         const supplyChain = await SupplyChain.deployed();
         
         // Add the roles.
+        await supplyChain.addFarmer(originFarmerID);
         await supplyChain.addDistributor(distributorID);
         await supplyChain.addRetailer(retailerID);
         await supplyChain.addConsumer(consumerID);
